@@ -1,0 +1,42 @@
+---
+- hosts: 127.0.0.1
+  become: yes
+  remote_user: root
+  tasks: 
+  - name: Check if path exists
+    stat:
+      path: /tools/scripts/TEAM/customRotate/ 
+    register: stat_result_path
+  - name: Check that /tools/scripts/TEAM/customRotate/audit-CUSTOM exists 
+    stat: 
+      path: /tools/scripts/TEAM/customRotate/audit-CUSTOM
+    register: stat_result_file  
+  - name: Creates directory /tools/scripts/TEAM/customRotate
+    file:
+      path: /tools/scripts/TEAM/customRotate
+      state: directory
+    when: stat_result_path.stat.exists == false
+  - name: Copy customRotate audit-CUSTOM file to /tools/scripts/TEAM/customRotate/audit-CUSTOM, if it doesn't exists already
+    command: cp -pa /etc/logrotate.d/audit  /tools/scripts/TEAM/customRotate/audit-CUSTOM
+    when: stat_result_file.stat.exists == False
+  - name: Change daily rotate mode to 500M rotate mode at audit-CUSTOM config file
+    lineinfile: dest=/tools/scripts/TEAM/customRotate/audit-CUSTOM
+              regexp="^daily"
+              line="size 500"
+              state=present
+    notify:
+    - Restart audit
+
+  - name: Check that the auditcron exists
+    stat:
+      path: /etc/cron.hourly/auditcron
+    register: stat_result_file_auditcron
+  - name: Copy the template, if it doesnt exist already
+    template:
+      src: auditcron.j2
+      dest: /etc/cron.hourly/auditcron
+    when: stat_result_file_auditcron.stat.exists == False
+
+  handlers:
+  - name: Restart audit
+    command: service auditd restart 
